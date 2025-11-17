@@ -1,0 +1,422 @@
+---
+title: "NLP"
+author: "Daisy Kiyemba"
+date: "2025-05-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+
+#working directory
+setwd('C:\\Users\\deeda\\Desktop\\Brandeis\\NLP manuscript\\AVG_VD')
+#clear workspace
+rm(list=ls())
+
+#importing & reading voice data
+Overall <- read.csv('NLP_analysis - Cardiff.avg_sentiment_100_20.csv')
+
+sum(is.na(Overall))
+
+Overall <- na.omit(Overall) #remove mising values
+
+#loading packages to use
+Pkgs<-c('tidyverse', 'interactions', 'rempsyc')
+suppressMessages(sapply(Pkgs, require, character.only=TRUE))
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+## Checking & Removing any outliers
+
+```{r}
+
+
+#checking for outliers
+
+library(performance)
+#check_outliers(data)
+
+#plot(check_outliers(Overall$AVG_VD))
+
+#checking for outliers
+columns_to_check <- c("AVG_VD", "avg_positive", "avg_neutral", "avg_negative")
+
+# Identify outliers in selected columns
+# Compute Z-scores
+z_scores <- scale(Overall[, columns_to_check])
+
+# Identify rows where any selected column has |Z| > 3
+(outlier_rows <- apply(abs(z_scores) > 3, 1, any))
+
+# Remove those rows
+
+OverallX <- Overall[!outlier_rows, ] #dataset for correlations before rescaling
+
+NLP <- Overall[!outlier_rows, ]   #official dataset after rescaling
+
+
+```
+
+
+
+
+
+
+```{r}
+#creating composite scores
+#scaling variables
+NLP <- NLP%>%
+  mutate(across(c(WMS_LD, CVLT_LD, FNAME_LD), scale))
+
+#episodic
+NLP <- NLP %>%
+  mutate(episodic = rowMeans(
+    dplyr::select(., 'WMS_LD', 'CVLT_LD', 'FNAME_LD'), na.rm = TRUE))
+
+
+```
+
+
+
+
+```{r}
+#raw plot
+
+plot(subset(NLP, 
+            select = c(AVG_VD, avg_negative, avg_positive, avg_neutral)))
+
+
+
+
+
+```
+
+
+
+#creating total emotion & valence indices
+
+```{r}
+
+# NLPX <- NLPX %>%
+#   # 1. build the two new indices
+#   mutate(
+#     total_emotion = avg_positive + avg_negative,
+#     valence       = avg_positive - avg_negative
+#   ) 
+# %>%
+#   mutate(
+#     GDS_c            = GDS - mean(GDS, na.rm=TRUE),
+#     total_emotion_c  = total_emotion - mean(total_emotion, na.rm=TRUE),
+#     valence_c        = valence - mean(valence, na.rm=TRUE)
+#   )
+
+
+# hist(NLPX$valence)
+# hist(NLPX$total_emotion)
+
+
+```
+
+
+
+## correlation
+
+```{r}
+
+mycor <- OverallX %>%
+  dplyr::select(AVG_VD, GDS, Age, Education, avg_negative, avg_positive, avg_neutral)
+
+# mycor <- overall %>%
+#   select(VD, GDS, emo_pos, emo_neg)
+
+library(apaTables)
+
+apa.cor.table(mycor,
+              filename = "Correlation.doc",
+              table.number = 3)
+
+
+
+
+# mycor1 <- NLPX %>%
+#   dplyr::select(VD, GDS, total_emotion, valence, Digit, WMS_LD, CVLT_LD, FNAME_LD)
+# 
+# # mycor <- overall %>%
+# #   select(VD, GDS, emo_pos, emo_neg)
+# 
+# library(apaTables)
+# 
+# apa.cor.table(mycor1,
+#               filename = "Correlation_with_emotion_valence.doc",
+#               table.number = 4)
+
+```
+
+
+
+
+## Visulaizing Correlation Relationships 
+
+```{r}
+
+#Negative sentiment & Age
+
+nice_scatter(NLP, predictor ="Age", response = "avg_negative", 
+             ytitle = "Negative content",
+             xtitle = "Age",
+             #has.points = FALSE,
+             has.jitter = TRUE,
+             alpha = .7,
+             #has.confband = TRUE,
+             #has.fullrange = TRUE,
+             has.r = TRUE, r.x =80, r.y = .22, 
+             has.p = TRUE, p.x =80, p.y = .2, 
+            ) + 
+  
+  #adding this function to get a customized color for line & confidence bands
+  geom_smooth(
+    method = "lm", 
+    se     = TRUE, 
+    color  = "black",       # regression line
+    fill   = "Forestgreen",   # ribbon color
+    #alpha  = 0.3
+  ) +
+  
+  #to customize the theme such as font size
+  theme(
+    axis.title.x = element_text(size = 18),  # choose whatever point size you like
+    axis.title.y = element_text(size = 18)
+  )
+
+
+
+
+```
+
+
+
+
+
+```{r}
+#making sure sex, race are categorical variables
+# Convert Race, sex, and time.delay.minutes to factors
+NLP <- NLP %>%
+  mutate(
+    #subject = as.factor(BABS_ID),
+    sex = as.factor(sex),
+    Race = as.factor(Race),
+    film = number.of.movies.watched,
+    #timedelay = time_delay,
+    edu = Education
+    #NegEmo = avg_negative,
+    #PosEmo = avg_positive,
+    #Neutral = avg_neutral
+    )
+
+
+head(NLP, 5)
+
+summary(NLP)
+
+```
+
+
+
+> Positive sentiment Models
+
+```{r, echo=TRUE}
+# Fit the multiple linear regression model
+m1a <- lm(AVG_VD ~ GDS + avg_positive, NLP)
+
+m1b <- lm(AVG_VD ~ GDS*avg_positive + Age + sex + edu + film + timedelay, NLP)
+
+
+#to summarize the four model results
+texreg::screenreg(list(m1a, m1b),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+```
+
+
+```{r}
+summary(m1b)
+
+
+```
+
+
+
+
+```{r}
+#graphical presentation of the interaction
+ interact_plot(m1b, pred=GDS, modx=avg_positive,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "brown2"),
+              x.label    = "Level of depressive symptoms",
+              y.label    = "Verfiable details recalled",
+             legend.main= "Positive Content",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+```
+
+
+
+
+> Negative sentiment Models
+
+```{r, echo=TRUE}
+# Fit the multiple linear regression model
+m2a <- lm(AVG_VD ~ GDS + avg_negative, NLP)
+
+m2b <- lm(AVG_VD ~ GDS*avg_negative + Age + sex + edu + film + timedelay, NLP)
+
+
+#to summarize the four model results
+texreg::screenreg(list(m2a, m2b),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+summary(m2b)
+
+```
+
+
+
+
+
+> Neutral Sentiment Models
+
+```{r, echo=TRUE}
+# Fit the multiple linear regression model
+m3a <- lm(AVG_VD ~ GDS + avg_neutral, NLP)
+
+m3b <- lm(AVG_VD ~ GDS*avg_neutral + Age + sex + edu + film + timedelay, NLP)
+
+
+#to summarize the four model results
+texreg::screenreg(list(m3a, m3b),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+summary(m3b)
+
+```
+
+
+
+
+
+```{r}
+#graphical presentation of the interaction
+ interact_plot(m3b, pred=GDS, modx=avg_neutral,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "hotpink4"),
+              x.label    = "Level of depressive symptoms",
+              y.label    = "Verfiable details recalled",
+             legend.main= "Neutral content",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+

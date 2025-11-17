@@ -1,0 +1,1660 @@
+---
+title: "TotalEmotion"
+author: "Daisy Kiyemba"
+date: "2025-06-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE}
+
+#working directory
+setwd('C:\\Users\\deeda\\Desktop\\Brandeis\\NLP manuscript\\AVG_VD\\TotalEmotion') 
+
+#clear workspace
+rm(list=ls())
+
+#importing & reading voice data
+vol <- read.csv('Volume - updated_vol_AVG_VD.csv') 
+
+#loading packages to use
+suppressMessages(require(tidyverse))
+suppressMessages(require(rempsyc))
+suppressMessages(require(psych))
+suppressMessages(require(interactions))
+
+
+```
+
+
+
+```{r, echo=FALSE}
+
+#check for missing values
+(missing <- sum(is.na(vol))) #missing_values = 36
+
+#exclude missing data
+
+data <- na.omit(vol)
+
+#making sure sex, timedelay, race are categorical variables
+# Convert Race, sex, and time.delay.minutes to factors
+data <- data %>%
+  mutate(
+    sex = as.factor(Sex),
+    edu = as.numeric(Education),
+    timedelay = as.numeric(timedelay),
+    hippo = Total_hippo,
+    amygdala = Total_amygdala,
+    ICV = EstimatedTotalIntraCranialVol,
+    L_hippo = Left.Hippocampus,
+    R_hippo = Right.Hippocampus,
+    L_amyg = Left.Amygdala,
+    R_amyg = Right.Amygdala
+    
+    )
+
+head(data, 5)
+
+#summary(data)
+
+
+
+```
+
+
+
+```{r}
+#creating composite scores
+#scaling variables
+# data <- data %>%
+#   mutate(across(c(WMS_LD, CVLT_LD, FNAME_LD), scale))
+
+#episodic
+# data <- data %>%
+#   mutate(episodic = rowMeans(select(., 'WMS_LD', 'CVLT_LD', 'FNAME_LD'), na.rm = TRUE))
+
+
+
+
+```
+
+
+
+## Scatterplots
+
+```{r, echo=TRUE}
+
+#raw plot
+# plot(subset(data, 
+#             select = c(VD, GDS, amygdala, hippo)))
+
+# plot(subset(data, 
+#             select = c(VD, GDS, L_amyg, R_amyg, amygdala, L_hippo, R_hippo, hippo)))
+
+```
+
+
+
+#outliers check
+
+```{r}
+
+library(performance)
+#check_outliers(data)
+
+plot(check_outliers(data$Total_hippo))
+plot(check_outliers(data$Total_amygdala))
+
+#checking for outliers
+columns_to_check <- c("Total_hippo", "Total_amygdala", "avg_positive", "avg_neutral", "avg_negative")
+
+# Identify outliers in selected columns
+# Compute Z-scores
+z_scores <- scale(data[, columns_to_check])
+
+# Identify rows where any selected column has |Z| > 3
+outlier_rows <- apply(abs(z_scores) > 3, 1, any)
+
+# Remove those rows
+dataX <- data[!outlier_rows, ]
+
+#visually checking again
+#plot(check_outliers(dataX$Total_hippo))
+#plot(check_outliers(dataX$Total_amygdala))
+
+
+#four participants removed as an outliers
+
+```
+
+
+
+
+#creating total emotion(emotion_intensity) & emotyion_valence indices
+
+```{r}
+
+dataX <- dataX %>%
+  # 1. build the two new indices
+  mutate(
+    emotional_intensity = avg_positive + avg_negative,
+    emotional_valence   = avg_positive - avg_negative
+  ) 
+# %>%
+#   mutate(
+#     GDS_c            = GDS - mean(GDS, na.rm=TRUE),
+#     total_emotion_c  = total_emotion - mean(total_emotion, na.rm=TRUE),
+#     valence_c        = valence - mean(valence, na.rm=TRUE)
+#   )
+
+
+hist(dataX$emotional_valence)
+hist(dataX$emotional_intensity)
+
+
+```
+
+
+
+
+> descriptive statistics
+
+```{r}
+
+
+#describe(dataX)
+
+
+```
+
+
+
+
+#controlling for intra-cranial volume
+
+```{r}
+
+model_hippo <- lm(hippo ~ ICV, dataX)
+model_L_hippo <- lm(L_hippo ~ ICV, dataX)
+model_R_hippo <- lm(R_hippo ~ ICV, dataX)
+
+model_amyg <- lm(amygdala ~ ICV, dataX)
+model_L_amyg <- lm(L_amyg ~ ICV, dataX)
+model_R_amyg <- lm(R_amyg ~ ICV, dataX)
+
+#residual extraction
+dataX$Hippo_R <- residuals(model_hippo)
+dataX$L_hippo_r <- residuals(model_L_hippo)
+dataX$R_hippo_r <- residuals(model_R_hippo)
+
+dataX$Amyg_R <- residuals(model_amyg)
+dataX$L_amyg_r <- residuals(model_L_amyg)
+dataX$R_amyg_r <- residuals(model_R_amyg)
+
+
+```
+
+
+
+#plotting with residuals
+
+```{r}
+
+#raw plot
+plot(subset(dataX, 
+            select = c(VD, GDS, Amyg_R, Hippo_R, emotional_intensity, emotional_valence)))
+
+
+```
+
+
+
+
+#Correlations
+
+
+
+```{r}
+
+mycor2 <- dataX %>% 
+  dplyr::select(VD, Age, Education, GDS, avg_positive, avg_neutral, avg_negative, Amyg_R, Hippo_R) 
+
+#cor(mycor)
+
+
+#cor.test(data$VD, data$episodic)
+
+library(apaTables)
+
+apa.cor.table(mycor2,
+              #filename = "Correlation2.doc",
+              table.number = 1)
+
+
+```
+
+
+
+
+
+```{r}
+
+mycor <- dataX %>% 
+  dplyr::select(VD, Age, Education, GDS, emotional_intensity, emotional_valence, Amyg_R, Hippo_R) 
+
+#cor(mycor)
+
+
+#cor.test(data$VD, data$episodic)
+
+library(apaTables)
+
+apa.cor.table(mycor,
+              filename = "Correlation.doc",
+              table.number = 1)
+
+
+
+
+```
+
+
+
+
+## Visulaizing Correlation Relationships 
+
+```{r}
+
+#Negative sentiment & Age
+
+nice_scatter(dataX, predictor ="Age", response = "avg_negative", 
+             ytitle = "Negative content (%)",
+             xtitle = "Age",
+             #has.points = FALSE,
+             has.jitter = TRUE,
+             alpha = .7,
+             #has.confband = TRUE,
+             #has.fullrange = TRUE,
+             has.r = TRUE, r.x =80, r.y = .22, 
+             has.p = TRUE, p.x =80, p.y = .2, 
+            ) + 
+  
+  #adding this function to get a customized color for line & confidence bands
+  geom_smooth(
+    method = "lm", 
+    se     = TRUE, 
+    color  = "black",       # regression line
+    fill   = "turquoise",   # ribbon color
+    #alpha  = 0.3
+  ) +
+  
+  #to customize the theme such as font size
+  theme(
+    axis.title.x = element_text(size = 18),  # choose whatever point size you like
+    axis.title.y = element_text(size = 18)
+  )
+
+
+
+
+#GDS & VD
+
+nice_scatter(dataX, predictor ="GDS", response = "VD", 
+             ytitle = "Film recall",
+             xtitle = "Level of depressive symptoms",
+             #has.points = FALSE,
+             has.jitter = TRUE,
+             alpha = .7,
+             #has.confband = TRUE,
+             #has.fullrange = TRUE,
+             has.r = TRUE, r.x =13, r.y = 90, 
+             has.p = TRUE, p.x =13.95, p.y = 85, 
+            ) + 
+  
+  #adding this function to get a customized color for line & confidence bands
+  geom_smooth(
+    method = "lm", 
+    se     = TRUE, 
+    color  = "black",       # regression line
+    fill   = "brown",   # ribbon color
+    #alpha  = 0.3
+  ) +
+  
+  #to customize the theme such as font size
+  theme(
+    axis.title.x = element_text(size = 18),  # choose whatever point size you like
+    axis.title.y = element_text(size = 18)
+  )
+
+
+
+
+#Hippo & film recall
+
+nice_scatter(dataX, predictor ="Hippo_R", response = "VD", 
+             ytitle = "Film recall",
+             xtitle = "Hippocampal volume",
+             #has.points = FALSE,
+             has.jitter = TRUE,
+             alpha = .7,
+             #has.confband = TRUE,
+             #has.fullrange = TRUE,
+             has.r = TRUE, #r.x =80, r.y = .22, 
+             has.p = TRUE, #p.x =80, p.y = .2, 
+            ) + 
+  
+  #adding this function to get a customized color for line & confidence bands
+  geom_smooth(
+    method = "lm", 
+    se     = TRUE, 
+    color  = "black",       # regression line
+    fill   = "coral",   # ribbon color
+    #alpha  = 0.3
+  ) +
+  
+  #to customize the theme such as font size
+  theme(
+    axis.title.x = element_text(size = 18),  # choose whatever point size you like
+    axis.title.y = element_text(size = 18)
+  )
+
+
+
+
+```
+
+
+
+
+
+
+
+&nbsp;
+
+
+## Hippocampal Models
+
+> Emotion intensity Models
+
+```{r, echo=TRUE}
+# Fit the multiple linear regression model
+m1a <- lm(VD ~ GDS + emotional_intensity + Hippo_R, dataX)
+
+m1b <- lm(VD ~ GDS + emotional_intensity + Hippo_R + Age + sex + edu + films + timedelay, dataX)
+
+m1c <- lm(VD ~emotional_intensity*Hippo_R + GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m1d <- lm(VD ~ emotional_intensity*Hippo_R*GDS + Age + sex + edu + films + timedelay, dataX)
+
+
+
+#to summarize the four model results
+texreg::screenreg(list(m1a, m1b, m1c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+```
+
+
+
+
+
+
+```{r, echo=TRUE}
+#best Model - Model 3
+summary(m1c)
+
+
+
+```
+
+
+
+
+
+
+
+```{r, echo=TRUE}
+#graphical presentation of the interaction
+ interact_plot(m1c, pred=Hippo_R, modx=emotional_intensity,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "orange"),
+              x.label    = "Hippocampal volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Emotional intensity",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m1c, pred = Hippo_R, modx = emotional_intensity, 
+           jnplot = TRUE
+           )
+
+
+
+
+```
+
+
+
+
+> Neutral Models
+
+```{r, echo=TRUE}
+# Fit the multiple linear regression model
+m2a <- lm(VD ~ GDS + avg_neutral + Hippo_R, dataX)
+
+m2b <- lm(VD ~ GDS + avg_neutral + Hippo_R + Age + sex + edu + films + timedelay, dataX)
+
+m2c <- lm(VD ~ avg_neutral*Hippo_R + GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m2d <- lm(VD ~ avg_neutral*Hippo_R*GDS + Age + sex + edu + films + timedelay, dataX)
+
+
+
+#to summarize the four model results
+texreg::screenreg(list(m2a, m2b, m2c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+```
+
+
+
+
+
+
+```{r, echo=TRUE}
+#model 3 is the best
+
+summary(m2c)
+
+```
+
+
+
+
+
+```{r, echo=TRUE}
+#graphical presentation of the interaction
+ interact_plot(m2c, pred=Hippo_R, modx=avg_neutral,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "orange"),
+              x.label    = "Hippocampal volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Neutral content",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m2c, pred = Hippo_R, modx = avg_neutral, 
+           jnplot = TRUE
+           )
+
+
+
+
+
+
+
+```
+
+
+
+
+> Emotional Valence Models
+
+```{r, echo=TRUE}
+# Fit the multiple linear regression model
+m3a <- lm(VD ~ GDS + emotional_valence + Hippo_R, dataX)
+
+m3b <- lm(VD ~ GDS + emotional_valence + Hippo_R + Age + sex + edu + films + timedelay, dataX)
+
+m3c <- lm(VD ~ emotional_valence*Hippo_R + GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m3d <- lm(VD ~ emotional_valence*Hippo_R*GDS + Age + sex + edu + films + timedelay, dataX)
+
+
+
+#to summarize the four model results
+texreg::screenreg(list(m3a, m3b, m3c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+```
+
+
+
+
+
+
+```{r, echo=TRUE}
+summary(m3c)
+
+
+```
+
+
+
+
+
+
+
+```{r, echo=TRUE}
+#graphical presentation of the interaction
+ interact_plot(m3c, pred=Hippo_R, modx=emotional_valence,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "orange"),
+              x.label    = "Hippocampal volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Emotional valence",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m3c, pred = Hippo_R, modx = emotional_valence, 
+           jnplot = TRUE
+           )
+
+
+
+
+```
+
+
+
+&nbsp;
+
+ ## Amygdala Models
+ 
+> Emotional Intensity Models
+
+
+```{r}
+# Fit the multiple linear regression model
+m4a <- lm(VD ~ GDS + emotional_intensity + Amyg_R, dataX)
+
+m4b <- lm(VD ~ GDS + emotional_intensity + Amyg_R + Age + sex + edu + films + timedelay, dataX)
+
+m4c <- lm(VD ~ emotional_intensity*Amyg_R + GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m4d <- lm(VD ~ emotional_intensity*Amyg_R + emotional_intensity*GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m4e <- lm(VD ~ emotional_intensity*Amyg_R + emotional_intensity*GDS + GDS*Amyg_R + Age + sex + edu + films + timedelay, dataX)
+
+
+
+
+#to summarize the four model results
+texreg::screenreg(list(m4a, m4b, m4c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+```
+
+
+
+
+
+```{r}
+
+summary(m4c)
+#summary(m4e)
+
+
+```
+
+
+
+
+
+
+## Graphical presentations of model 4d
+
+> interaction: Amygdala:Intensity
+
+```{r}
+
+#graphical presentation of the interaction
+ interact_plot(m4c, pred=Amyg_R, modx=emotional_intensity,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "forestgreen"),
+              x.label    = "Amygdala volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Emotional intensity",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m4c, pred = Amyg_R, modx = emotional_intensity, 
+           jnplot = TRUE
+           )
+
+
+```
+
+
+
+
+
+```{r}
+
+# interaction: Amygdala*GDS
+
+# #graphical presentation of the interaction
+#  interact_plot(m4e, pred=Amyg_R, modx=GDS,
+#               interval   = TRUE,       # adding CI bands
+#               plot.points= TRUE,
+#               jitter = 0.2,
+#               colors   = c("black", "coral"),
+#               x.label    = "Amygdala volume",
+#               y.label    = "Film recall",
+#              legend.main= "Depressive symptoms",
+#              
+# ) + 
+#   
+#   theme(
+#     legend.position    = "bottom",             # move legend above the panel
+#     #legend.direction   = "horizontal",      # lay out keys side by side
+#     legend.title.align = 0.5,   
+#   
+#     axis.title.x = element_text(size = 15),  # Increase x-axis label size
+#     axis.title.y = element_text(size = 15), # Increase y-axis label size
+#     axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+#     axis.ticks = element_line(size = 1),  #adding axis ticks
+#     axis.ticks.length = unit(0.25, "cm"),
+#     
+#     #axis.ticks = element_blank(), #removing axis ticks
+#     
+#     axis.line = element_line(colour = "black"),
+#     panel.grid = element_line(color = "#b4aea9"),
+#     panel.grid.minor = element_blank(),
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.major.y = element_line(linetype = "dashed"),
+#     panel.background = element_blank(),
+#       #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+#     #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+#   )
+
+
+
+# #Neyman plot for slope anaysis
+# sim_slopes(m4e, pred = Amyg_R, modx = GDS, 
+#            jnplot = TRUE
+#            )
+
+
+
+
+```
+
+
+> interaction: GDS*Intensity
+
+
+```{r}
+
+
+
+# #graphical presentation of the interaction
+#  interact_plot(m4d, pred=GDS, modx=emotional_intensity,
+#               interval   = TRUE,       # adding CI bands
+#               plot.points= TRUE,
+#               jitter = 0.2,
+#               colors   = c("black", "brown2"),
+#               x.label    = "Level of depressive symptoms",
+#               y.label    = "Film recall",
+#              legend.main= "Emotional intensity",
+#              
+# ) + 
+#   
+#   theme(
+#     legend.position    = "bottom",             # move legend above the panel
+#     #legend.direction   = "horizontal",      # lay out keys side by side
+#     legend.title.align = 0.5,   
+#   
+#     axis.title.x = element_text(size = 15),  # Increase x-axis label size
+#     axis.title.y = element_text(size = 15), # Increase y-axis label size
+#     axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+#     axis.ticks = element_line(size = 1),  #adding axis ticks
+#     axis.ticks.length = unit(0.25, "cm"),
+#     
+#     #axis.ticks = element_blank(), #removing axis ticks
+#     
+#     axis.line = element_line(colour = "black"),
+#     panel.grid = element_line(color = "#b4aea9"),
+#     panel.grid.minor = element_blank(),
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.major.y = element_line(linetype = "dashed"),
+#     panel.background = element_blank(),
+#       #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+#     #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+#   )
+# 
+# 
+# 
+# #Neyman plot for slope anaysis
+# sim_slopes(m4d, pred = GDS, modx = emotional_intensity, 
+#            jnplot = TRUE
+#            )
+
+
+```
+
+
+
+
+
+
+
+
+> Neutral Models
+
+
+```{r}
+# Fit the multiple linear regression model
+m5a <- lm(VD ~ GDS + avg_neutral + Amyg_R, dataX)
+
+m5b <- lm(VD ~ GDS + avg_neutral + Amyg_R + Age + sex + edu + films + timedelay, dataX)
+
+m5c <- lm(VD ~ avg_neutral*Amyg_R + GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m5d <- lm(VD ~ avg_neutral*Amyg_R + avg_neutral*GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m5e <- lm(VD ~ avg_neutral*Amyg_R + avg_neutral*GDS + Amyg_R*GDS + Age + sex + edu + films + timedelay, dataX)
+
+
+
+#to summarize the four model results
+texreg::screenreg(list(m5a, m5b, m5c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+```
+
+
+
+
+
+```{r}
+
+
+summary(m5c)
+
+#summary(m5e)
+
+
+
+
+
+
+
+```
+
+
+## Graphical presentations of model 5d
+
+> interaction: Amygdala:Neutral
+
+```{r}
+
+#graphical presentation of the interaction
+ interact_plot(m5c, pred=Amyg_R, modx=avg_neutral,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "forestgreen"),
+              x.label    = "Amygdala Volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Neutral content",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m5c, pred = Amyg_R, modx = avg_neutral, 
+           jnplot = TRUE
+           )
+
+
+
+
+```
+
+
+
+
+
+
+
+```{r}
+
+#> interaction: Amygdala*GDS
+
+# #graphical presentation of the interaction
+#  interact_plot(m5e, pred=Amyg_R, modx=GDS,
+#               interval   = TRUE,       # adding CI bands
+#               plot.points= TRUE,
+#               jitter = 0.2,
+#               colors   = c("black", "coral"),
+#               x.label    = "Amygdala Volume",
+#               y.label    = "Film recall",
+#              legend.main= "Depressive symptoms",
+#              
+# ) + 
+#   
+#   theme(
+#     legend.position    = "bottom",             # move legend above the panel
+#     #legend.direction   = "horizontal",      # lay out keys side by side
+#     legend.title.align = 0.5,   
+#   
+#     axis.title.x = element_text(size = 15),  # Increase x-axis label size
+#     axis.title.y = element_text(size = 15), # Increase y-axis label size
+#     axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+#     axis.ticks = element_line(size = 1),  #adding axis ticks
+#     axis.ticks.length = unit(0.25, "cm"),
+#     
+#     #axis.ticks = element_blank(), #removing axis ticks
+#     
+#     axis.line = element_line(colour = "black"),
+#     panel.grid = element_line(color = "#b4aea9"),
+#     panel.grid.minor = element_blank(),
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.major.y = element_line(linetype = "dashed"),
+#     panel.background = element_blank(),
+#       #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+#     #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+#   )
+# 
+# 
+# 
+# #Neyman plot for slope anaysis
+# sim_slopes(m5e, pred = Amyg_R, modx = GDS, 
+#            jnplot = TRUE
+#            )
+
+
+
+
+```
+
+
+
+
+
+
+
+> interaction: GDS:Neutral
+
+
+```{r}
+
+
+
+#graphical presentation of the interaction
+#  interact_plot(m5d, pred=GDS, modx=avg_neutral,
+#               interval   = TRUE,       # adding CI bands
+#               plot.points= TRUE,
+#               jitter = 0.2,
+#               colors   = c("black", "hotpink4"),
+#               x.label    = "Level of depressive symptoms",
+#               y.label    = "Film recall",
+#              legend.main= "Neutral content",
+#              
+# ) + 
+#   
+#   theme(
+#     legend.position    = "bottom",             # move legend above the panel
+#     #legend.direction   = "horizontal",      # lay out keys side by side
+#     legend.title.align = 0.5,   
+#   
+#     axis.title.x = element_text(size = 15),  # Increase x-axis label size
+#     axis.title.y = element_text(size = 15), # Increase y-axis label size
+#     axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+#     axis.ticks = element_line(size = 1),  #adding axis ticks
+#     axis.ticks.length = unit(0.25, "cm"),
+#     
+#     #axis.ticks = element_blank(), #removing axis ticks
+#     
+#     axis.line = element_line(colour = "black"),
+#     panel.grid = element_line(color = "#b4aea9"),
+#     panel.grid.minor = element_blank(),
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.major.y = element_line(linetype = "dashed"),
+#     panel.background = element_blank(),
+#       #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+#     #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+#   )
+# 
+# 
+# 
+# #Neyman plot for slope anaysis
+# sim_slopes(m5d, pred = GDS, modx = avg_neutral, 
+#            jnplot = TRUE
+#            )
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+> Emotional valence Models
+
+
+```{r}
+m6a <- lm(VD ~ GDS + emotional_valence + Amyg_R, dataX)
+
+m6b <- lm(VD ~ GDS + emotional_valence + Amyg_R + Age + sex + edu + films + timedelay, dataX)
+
+m6c <- lm(VD ~ emotional_valence*Amyg_R + GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m6d <- lm(VD ~ emotional_valence*Amyg_R + emotional_valence*GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m6e <- lm(VD ~ emotional_valence*Amyg_R + Amyg_R*GDS + Age + sex + edu + films + timedelay, dataX)
+
+#m6f <- lm(VD ~ emotional_valence*Amyg_R + emotional_valence*GDS + Amyg_R*GDS + Age + sex + edu + films + timedelay, dataX)
+
+#to summarize the four model results
+texreg::screenreg(list(m6a, m6b, m6c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+summary(m6c)
+
+#summary(m6d)
+
+
+#there is no interaction between emotional valence & GDS on film recall
+
+
+
+
+
+```
+
+
+## Graphical presentations for model 6e
+
+> Interaction: Amygdala*Valence
+
+```{r}
+
+
+#graphical presentation of the interaction
+ interact_plot(m6c, pred=Amyg_R, modx=emotional_valence,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "forestgreen"),
+              x.label    = "Amygdala Volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Emotional valence",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m6c, pred = Amyg_R, modx = emotional_valence, 
+           jnplot = TRUE
+           )
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+#> interaction: Amygdala*GDS
+
+# #graphical presentation of the interaction
+#  interact_plot(m6e, pred=Amyg_R, modx=GDS,
+#               interval   = TRUE,       # adding CI bands
+#               plot.points= TRUE,
+#               jitter = 0.2,
+#               colors   = c("black", "coral"),
+#               x.label    = "Amygdala Volume",
+#               y.label    = "Film recall",
+#              legend.main= "Depressive symptoms",
+#              
+# ) + 
+#   
+#   theme(
+#     legend.position    = "bottom",             # move legend above the panel
+#     #legend.direction   = "horizontal",      # lay out keys side by side
+#     legend.title.align = 0.5,   
+#   
+#     axis.title.x = element_text(size = 15),  # Increase x-axis label size
+#     axis.title.y = element_text(size = 15), # Increase y-axis label size
+#     axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+#     axis.ticks = element_line(size = 1),  #adding axis ticks
+#     axis.ticks.length = unit(0.25, "cm"),
+#     
+#     #axis.ticks = element_blank(), #removing axis ticks
+#     
+#     axis.line = element_line(colour = "black"),
+#     panel.grid = element_line(color = "#b4aea9"),
+#     panel.grid.minor = element_blank(),
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.major.y = element_line(linetype = "dashed"),
+#     panel.background = element_blank(),
+#       #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+#     #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+#   )
+# 
+# 
+# 
+# #Neyman plot for slope anaysis
+# sim_slopes(m6e, pred = Amyg_R, modx = GDS, 
+#            jnplot = TRUE
+#            )
+# 
+# 
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+&nbsp;
+
+## Medial Temporal Lobe
+
+
+```{r}
+
+#composite score for MTL
+dataX <- dataX %>%
+  mutate(
+    MTL = rowMeans(
+      dplyr::select(., 'L_amyg_r', 'R_amyg_r', 'L_hippo_r', 'R_hippo_r'),
+      na.rm = TRUE
+    )
+  )
+
+
+#Correlations
+mycor2 <- dataX %>% 
+  dplyr::select(VD, Age, Education, GDS, MTL, emotional_intensity, emotional_valence) 
+
+apa.cor.table(mycor2,
+              filename = "Correlation2_with_MTL.doc",
+              table.number = 2)
+
+
+```
+
+
+
+
+
+> MTL Models: Emotional Intensity
+
+```{r}
+m7a <- lm(VD ~ MTL + emotional_intensity, dataX)
+m7b <- lm(VD ~ MTL + emotional_intensity + GDS + Age + sex + edu + films + timedelay, dataX)
+m7c <- lm(VD ~ MTL*emotional_intensity + GDS + Age + sex + edu + films + timedelay, dataX)
+#m7d <- lm(VD ~ MTL*emotional_intensity + emotional_intensity*GDS + Age + sex + edu + films + timedelay, dataX) 
+
+
+#to summarize the four model results
+texreg::screenreg(list(m7a, m7b, m7c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+```
+
+
+
+
+
+```{r}
+#Best model: Model 3
+
+summary(m7c)
+
+#summary(m7d)
+
+
+```
+
+
+
+
+
+
+
+```{r}
+#graphical presentation of the interaction
+ interact_plot(m7c, pred=MTL, modx=emotional_intensity,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "orange"),
+              x.label    = "Medial Temporal Lobe Volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Emotional Intensity",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m7c, pred = MTL, modx = emotional_intensity, 
+           jnplot = TRUE
+           )
+
+
+
+
+```
+
+
+
+
+
+
+> MTL Models: neutral
+
+```{r}
+m8a <- lm(VD ~ MTL + avg_neutral, dataX)
+m8b <- lm(VD ~ MTL + avg_neutral + GDS + Age + sex + edu + films + timedelay, dataX)
+m8c <- lm(VD ~ MTL*avg_neutral + GDS + Age + sex + edu + films + timedelay, dataX)
+#m8d <- lm(VD ~ MTL*avg_neutral + GDS*avg_neutral + Age + sex + edu + films + timedelay, dataX) 
+
+
+#to summarize the four model results
+texreg::screenreg(list(m8a, m8b, m8c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+```
+
+
+```{r}
+# Best model: Model 3
+summary(m8c)
+
+#summary(m8d)
+
+
+```
+
+
+
+
+
+
+```{r}
+#graphical presentation of the interaction
+ interact_plot(m8c, pred=MTL, modx=avg_neutral,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "turquoise"),
+              x.label    = "Medial Temporal Lobe Volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Neutral content",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m8c, pred = MTL, modx = avg_neutral, 
+           jnplot = TRUE
+           )
+
+
+
+
+
+```
+
+
+
+
+
+> MTL Models: Emotional valence
+
+```{r}
+m9a <- lm(VD ~ MTL + emotional_valence, dataX)
+m9b <- lm(VD ~ MTL + emotional_valence + GDS + Age + sex + edu + films + timedelay, dataX)
+m9c <- lm(VD ~ MTL*emotional_valence + GDS + Age + sex + edu + films + timedelay, dataX)
+#m9d <- lm(VD ~ MTL*GDS + MTL*emotional_valence + emotional_valence*GDS + Age + sex + edu + films + timedelay, dataX) 
+
+
+#to summarize the four model results
+texreg::screenreg(list(m9a, m9b, m9c),
+                  caption = "",
+          custom.note = "Note: ***p<.001, **p<.01, *p<.05,  
+          Model 1: hippo, 
+          Model 2: m1a + covariates,
+          Model 3: m1b + films,
+          Model 4: m1b + GDS,
+          Model 5: interaction"
+          )
+
+
+```
+
+
+
+
+
+
+```{r}
+
+summary(m9c)
+
+#summary(m9d)
+
+
+
+```
+
+
+
+
+```{r}
+
+#graphical presentation of the interaction
+ interact_plot(m9c, pred=MTL, modx=emotional_valence,
+              interval   = TRUE,       # adding CI bands
+              plot.points= TRUE,
+              jitter = 0.2,
+              colors   = c("black", "forestgreen"),
+              x.label    = "Medial Temporal Lobe volume",
+              y.label    = "Verifiable details recalled",
+             legend.main= "Emotional valence",
+             
+) + 
+  
+  theme(
+    legend.position    = "bottom",             # move legend above the panel
+    #legend.direction   = "horizontal",      # lay out keys side by side
+    legend.title.align = 0.5,   
+  
+    axis.title.x = element_text(size = 15),  # Increase x-axis label size
+    axis.title.y = element_text(size = 15), # Increase y-axis label size
+    axis.text = element_text(size = 15), #increasing the font for the numbers on the axis
+    axis.ticks = element_line(size = 1),  #adding axis ticks
+    axis.ticks.length = unit(0.25, "cm"),
+    
+    #axis.ticks = element_blank(), #removing axis ticks
+    
+    axis.line = element_line(colour = "black"),
+    panel.grid = element_line(color = "#b4aea9"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = "dashed"),
+    panel.background = element_blank(),
+      #element_rect(fill = "#fbf9f4", color = "#fbf9f4"),
+    #plot.background = element_rect(fill = "#fbf9f4", color = "#fbf9f4")
+  )
+
+
+
+#Neyman plot for slope anaysis
+sim_slopes(m9c, pred = MTL, modx = emotional_valence, 
+           jnplot = TRUE
+           )
+
+
+
+
+
+
+```
+
+
+
+
+
+#testing & comparing the models above
+
+```{r}
+
+#the model with the highest R-squared value
+#checking model 1e assumptions
+# check_model(m1d)
+# 
+# model_performance(m1d)
+
+
+
+
+```
+
+
+
+```{r}
+
+#comparing models performance
+# compare_performance(m1a, m1b, m1c, m1d)
+# 
+# plot(compare_performance(m1a, m1b, m1c, m1d, rank = TRUE, verbose = FALSE))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
